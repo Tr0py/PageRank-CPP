@@ -8,20 +8,40 @@ using namespace std;
 
 #define MAXRECORD 6110
 #define MAXNODE 8298
-#define STOPLOSS 0.00000001
+#define STOPLOSS 1e-10
 #define DUMPM
+#define BLOCKSIZE 100
 struct Tuple
 {
     int from;
     int degree;
-    int toList[894];
 };
-Tuple M[MAXRECORD]={0,0,{0}};
+Tuple DegreeList[MAXRECORD];
+int Degree[MAXNODE];
+static inline int getDegree(int);
+//class Node
+//{
+//    int value;
+//    Node* Next;
+//};
+//class Record
+//{
+//public:
+//    Record* next;
+//    int src;
+//    Node*
+//};    
+//class Table
+//{
+//public:
+    
 double R[MAXNODE];
 double Rt[MAXNODE]={0};
 double Beta=0;
 int NodeCount=0;
 int hash[MAXNODE]={0};
+int groupCount=0;
+void Prepare(char *);
 static inline double CalcDev()
 {
     double dev=0;
@@ -49,7 +69,7 @@ int UpdateR()
     for (int i=0; i < MAXNODE; i++)
     {
         if (hash[i]==0) continue;
-        rj_sum+=Rt[i];
+        rj_sum+=R[i];
     }
     printf("Now S=%lf\n", rj_sum);
 
@@ -58,19 +78,38 @@ int UpdateR()
     {
         Rt[i]=0.0;
     }
-    for (int i = 0; i < MAXRECORD; i++)
+
+    //Update
+    
+    ifstream bi("R.dat", ios::in|ios::binary);
+    char buff[1024];
+    int src, dst, deg;
+    for (int i = 0; i < groupCount; i++)
     {
-        ri = M[i].from;
-        add = R[(int)ri]/(double)M[i].degree;
-        add *= Beta;
-        //cout<<"ri="<<ri<<" R[i]="<<R[(int)ri]<<" degree="<<M[i].degree<<" Beta="<<Beta<<" hash[i]="<<hash[M[i].from]<<endl;
-        for (int j = 0; j < M[i].degree; j++)
+        sprintf(buff, "./BlockFiles/Matrix%s%d.txt", i<10?"0":"", i);
+        ifstream fi(buff);
+        while (!fi.eof())
         {
-            //cout<<"to: "<<M[i].toList[j]<<"+="<<add<<endl;
+            fi>>src>>deg;
+            //cout<<src<<" "<<deg<<endl;
+            //add = Beta*R[src]/(double)deg;
+            bi.seekg(src*sizeof(double), ios::beg);
+            bi.read((char*)&ri, sizeof(double));
             
-            Rt[M[i].toList[j]]+=add;
+            add = Beta*ri/(double)deg;
+            
+            while (1)
+            {
+                fi>>dst;
+                if (dst==-1) break;
+                Rt[dst]+=add;
+                //cout<<"dst "<<dst<<"+="<<add<<endl;
+            }
         }
+        fi.close();
     }
+        
+    
     // Insert Leaked PageRank
     rj_sum=0;
     for (int i=0; i < MAXNODE; i++)
@@ -102,15 +141,21 @@ int UpdateR()
         cout<<Rt[i]<<" ";
 
     }
-    printf("4037 R=%lf\n", R[4037]);
     cout<<endl;
     if (Dev<STOPLOSS)
     {
         cout<<"Power Iteration Complete!\n";
         return 0;
     }
+
+    ofstream fo("R.dat", ios::out|ios::binary|ios::trunc);
+    for (int i=0; i < MAXNODE; i++)
+    {
+        fo.write((char*)&Rt[i], sizeof(Rt[i]));
+    }
     memcpy(R, Rt, sizeof(double)*MAXNODE);
-    //exit(-1);
+    fo.close();
+    
     UpdateR();
     return 0;
 }
@@ -175,19 +220,19 @@ void SortAndPrint()
 }
 
 
+
 int main(int argc, char* argv[])
 {
-    //TODO check argc
-    Beta=atof(argv[2]);
+    Beta=argc>2?atof(argv[2]):0.85;
     cout<<"DataSet path:"<<argv[1]<<endl;
     cout<<"Beta value:"<<Beta<<endl;
+    cout<<"==========Initializing========\n";
     int from, to;
     int pre=-1;
-    cout<<"==========Initializing========\n";
+    int i=-1;
     cout<<"Opening Dataset.txt...";
     ifstream fin(argv[1]);
     cout<<(fin?"Success":"Cannot open file!")<<endl;
-    int i=-1;
     while (!fin.eof())
     {
         fin>>from>>to;
@@ -197,10 +242,10 @@ int main(int argc, char* argv[])
         if (from!=pre)
         {
             i++;
-            M[i].from=from;
+            DegreeList[i].from=from;
             pre=from;
         }
-        M[i].toList[M[i].degree++]=to;
+        DegreeList[i].degree++;
     }
     fin.close();
     for(i=0;i<MAXNODE;i++)
@@ -210,19 +255,18 @@ int main(int argc, char* argv[])
     cout<<"NodeCount="<<NodeCount<<endl;
 #ifdef DUMPM
     //ofstream fo("MatrixDump.txt", ios::trunc|ios::out);
-    FILE* fo=fopen("MatrixDump.txt", "w");
+    FILE* fo=fopen("Degree.txt", "w");
     for (int i = 0; i < MAXRECORD; i++)
     {
-        fprintf(fo, "i=%d\t%d\t%d\t", i, M[i].from, M[i].degree);
-        for (int j = 0; j < M[i].degree; j++)
-        {
-            fprintf(fo, "%d ",M[i].toList[j]);
-        }
-        fprintf(fo, "\n");
+        fprintf(fo, "%d\t%d\n", DegreeList[i].from, DegreeList[i].degree);
     }
     //fo.close();
     fclose(fo);
 #endif
+    Prepare(argv[1]);
+
+    //exit(-22);
+
     cout<<"Initializing variables...";
     for (int i=0; i < MAXNODE; i++)
     {
@@ -230,13 +274,13 @@ int main(int argc, char* argv[])
             R[i]=1.0/NodeCount;
         else
             R[i]=0;
-        cout<<"I:"<<i<<" "<<R[i]<<endl;
+        //cout<<"I:"<<i<<" "<<R[i]<<endl;
     }
     cout<<"Success\n";
-    cout<<"Checking R[i]="<<R[0]<<endl;
+    cout<<"Checking R[i]="<<R[30]<<endl;
     UpdateR();
     cout << "Checking...\n";
-    double S=0;
+    double S=0.0;
     for (int i=0; i < MAXNODE; i++)
     {
         if (hash[i]==1)
@@ -247,4 +291,84 @@ int main(int argc, char* argv[])
     
     return 0;
 
+}
+
+void Prepare(char* dataFile)
+{
+    cout<<"====Block-Stripe PageRank Algorithm====\n";
+    cout<<"Preparing...\n";
+    cout<<"Dataset: "<<dataFile<<endl;
+    cout<<"Opening Dataset...";
+    ifstream fin(dataFile);
+    cout<<(fin?"Success":"Fail")<<endl;
+    groupCount=MAXNODE/BLOCKSIZE + 1;
+    cout<<"MAXNODE="<<MAXNODE<<endl;
+    cout<<"BLOCKSIZE="<<BLOCKSIZE<<endl;
+    cout<<"GroupCount="<<groupCount<<endl;
+    // Create output files
+    char buff[1024];
+    fstream *fo=new fstream[groupCount];
+    fstream *fi=new fstream[groupCount];
+    int i;
+    system("mkdir BlockFiles");
+    cout<<"Creating Files...";
+    for (i = 0; i < groupCount; i++)
+    {
+        sprintf(buff, "./BlockFiles/Block%s%d.txt", i<10?"0":"", i);
+        fo[i].open(buff, ios::out|ios::trunc|ios::in);
+        sprintf(buff, "./BlockFiles/Matrix%s%d.txt", i<10?"0":"", i);
+        fi[i].open(buff, ios::out|ios::trunc|ios::in);
+    }
+    cout<<"Success"<<endl;
+    
+        
+    int src, dst;
+    int n=0;
+    cout<<"Dividing...";
+    while (!fin.eof())
+    {
+        fin>>src>>dst;
+        if (src==0&&dst==0) break;
+        n=dst/BLOCKSIZE;// Find the group
+        fo[n]<<src<<" "<<dst<<endl;
+    }
+    cout<<"Success"<<endl;
+    // Form Matrix
+    cout<<"Forming Matrix...";
+    int pre;
+    for (i = 0; i < groupCount; i++)
+    {
+        fo[i].seekg(0, ios::beg);
+        pre=-1;
+        while (!fo[i].eof())
+        {
+            fo[i]>>src>>dst;
+            //cout<<fo[i].tellp()<<endl;
+            if (fo[i].tellp()<0) break;
+            if (src==0||dst==0)break;
+            //cout<<src<<" "<<dst<<endl;
+            if (src!=pre)
+            {
+                pre=src;
+                if (fi[i].tellp()>0) fi[i]<<" -1"<<endl;//Sign of end
+                fi[i]<<src<<" "<<getDegree(src);
+            }
+            fi[i]<<" "<<dst;
+        }
+        fi[i]<<" -1";//marking the end of file
+        //fi[i]<<src<<" "<<getDegree(src);
+        fo[i].close();
+        fi[i].close();
+    }
+    
+}
+
+static inline int getDegree(int idx)
+{
+    int i;
+    for (i = 0; i < MAXRECORD; i++)
+    {   
+        if (DegreeList[i].from==idx) break;
+    }
+    return DegreeList[i].degree;
 }

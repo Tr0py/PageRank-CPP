@@ -8,7 +8,7 @@ using namespace std;
 
 #define MAXRECORD 6110
 #define MAXNODE 8298
-#define STOPLOSS 0.000001
+#define STOPLOSS 1e-10
 #define DUMPM
 struct Tuple
 {
@@ -44,6 +44,16 @@ int UpdateR()
     
     printf("===========Round %d===========\n", round);
     //memset(Rt, 0, sizeof(double)*MAXNODE);
+    //Check
+    rj_sum=0;
+    for (int i=0; i < MAXNODE; i++)
+    {
+        if (hash[i]==0) continue;
+        rj_sum+=Rt[i];
+    }
+    printf("Now S=%lf\n", rj_sum);
+
+    //Check end
     for (int i = 0; i < MAXNODE; i++)
     {
         Rt[i]=0.0;
@@ -51,9 +61,9 @@ int UpdateR()
     for (int i = 0; i < MAXRECORD; i++)
     {
         ri = M[i].from;
-        add = R[i]/(double)M[i].degree;
+        add = R[(int)ri]/(double)M[i].degree;
         add *= Beta;
-        cout<<"ri="<<ri<<" R[i]="<<R[i]<<" degree="<<M[i].degree<<" Beta="<<Beta<<" hash[i]="<<hash[M[i].from]<<endl;
+        //cout<<"ri="<<ri<<" R[i]="<<R[(int)ri]<<" degree="<<M[i].degree<<" Beta="<<Beta<<" hash[i]="<<hash[M[i].from]<<endl;
         for (int j = 0; j < M[i].degree; j++)
         {
             //cout<<"to: "<<M[i].toList[j]<<"+="<<add<<endl;
@@ -100,7 +110,7 @@ int UpdateR()
         return 0;
     }
     memcpy(R, Rt, sizeof(double)*MAXNODE);
-    exit(-1);
+    //exit(-1);
     UpdateR();
     return 0;
 }
@@ -109,39 +119,59 @@ struct Nd
     double value;
     int idx;
 };
+void swapNd(Nd& a, Nd&b)
+{
+    Nd tmp;
+    tmp.value=a.value;
+    tmp.idx=a.idx;
+    a.value=b.value;
+    a.idx=b.idx;
+    b.value=tmp.value;
+    b.idx=tmp.idx;
+}
 
 void SortAndPrint()
 {
-    Nd N[MAXNODE];
+    Nd *N=new Nd[NodeCount+1];
     Nd tmp;
+    int it=0;
     for (int i=0;i<MAXNODE;i++)
     {
-        
         if (hash[i]==0) continue;
-        N[i].value=R[i];
-        N[i].idx=i;
+        N[it].value=R[i];
+        N[it].idx=i;
+        it++;
+        //printf("Get %dth Node %d, value %lf\n", it, i, R[i]);
     }
-    for (int i = 0; i < MAXNODE; i++)
+    ofstream fo("FullResult.txt", ios::out|ios::trunc);
+    for (int i = 0; i < NodeCount; i++)
     {
         if (hash[i]==0) continue;
-        cout<<N[i].idx<<" "<<N[i].value<<endl;
+        fo<<"index:"<<i<<"\t"<<N[i].idx<<" "<<N[i].value<<endl;
     }
-    for (int i=0;i<MAXNODE;i++)
+    fo.close();
+    ofstream fs("SortList.txt", ios::out|ios::trunc);
+    for (int i = 0; i < NodeCount; i++)
     {
-        for (int j=0;j<MAXNODE;j++)
+        fs<<N[i].idx<<" "<<N[i].value<<endl;
+    }
+    fs.close();
+    for (int i=0;i<NodeCount;i++)
+    {
+        for (int j=i+1;j<NodeCount;j++)
         {
             if (N[i].value<N[j].value)
             {
-                tmp=N[i];
-                N[i]=N[j];
-                N[j]=tmp;
+                swapNd(N[i], N[j]);
             }
         }
     }
+    ofstream f100("Top100.txt", ios::out|ios::trunc);
     for (int i = 0; i < 100; i++)
     {
-        cout<<N[i].idx<<" "<<N[i].value<<endl;
+        f100<<N[i].idx<<" "<<N[i].value<<endl;
     }
+    f100.close();
 }
 
 
@@ -203,6 +233,7 @@ int main(int argc, char* argv[])
         cout<<"I:"<<i<<" "<<R[i]<<endl;
     }
     cout<<"Success\n";
+    cout<<"Checking R[i]="<<R[0]<<endl;
     UpdateR();
     cout << "Checking...\n";
     double S=0;
