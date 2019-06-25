@@ -41,7 +41,7 @@ double Beta=0;
 int NodeCount=0;
 int hash[MAXNODE]={0};
 int groupCount=0;
-void Prepare(char *);
+void Prepare(const char *);
 static inline double CalcDev()
 {
     double dev=0;
@@ -60,6 +60,7 @@ int UpdateR()
     static int round=0;
     double ri=0, rj_sum=0, add=0;
     int degree;
+    char buff[1024];
     round++;
     
     printf("===========Round %d===========\n", round);
@@ -81,8 +82,9 @@ int UpdateR()
 
     //Update
     
-    ifstream bi("R.dat", ios::in|ios::binary);
-    char buff[1024];
+    sprintf(buff, "R%s%d.dat", (round-1)>10?"":"0", round-1);
+    ifstream bi(buff, ios::in|ios::binary);
+    cout<<"open "<<buff<<endl;
     int src, dst, deg;
     for (int i = 0; i < groupCount; i++)
     {
@@ -95,6 +97,7 @@ int UpdateR()
             //add = Beta*R[src]/(double)deg;
             bi.seekg(src*sizeof(double), ios::beg);
             bi.read((char*)&ri, sizeof(double));
+            //cout<<"ri="<<ri<<endl;
             
             add = Beta*ri/(double)deg;
             
@@ -148,7 +151,10 @@ int UpdateR()
         return 0;
     }
 
-    ofstream fo("R.dat", ios::out|ios::binary|ios::trunc);
+    
+    sprintf(buff, "R%s%d.dat", (round)>10?"":"0", round);
+    ofstream fo(buff, ios::out|ios::binary|ios::trunc);
+    cout<<"open "<<buff<<endl;
     for (int i=0; i < MAXNODE; i++)
     {
         fo.write((char*)&Rt[i], sizeof(Rt[i]));
@@ -180,27 +186,32 @@ void SortAndPrint()
     Nd *N=new Nd[NodeCount+1];
     Nd tmp;
     int it=0;
+    double S=0;
     for (int i=0;i<MAXNODE;i++)
     {
         if (hash[i]==0) continue;
         N[it].value=R[i];
         N[it].idx=i;
         it++;
+        S+=R[i];
         //printf("Get %dth Node %d, value %lf\n", it, i, R[i]);
     }
-    ofstream fo("FullResult.txt", ios::out|ios::trunc);
+    printf("Print Check: S = %f\n", S);
+    ofstream fo("./Results/FullResult.txt", ios::out|ios::trunc);
     for (int i = 0; i < NodeCount; i++)
     {
         if (hash[i]==0) continue;
-        fo<<"index:"<<i<<"\t"<<N[i].idx<<" "<<N[i].value<<endl;
+        fo<<N[i].idx<<"\t"<<N[i].value<<endl;
     }
     fo.close();
-    ofstream fs("SortList.txt", ios::out|ios::trunc);
+    /*
+    ofstream fs("./Results/SortList.txt", ios::out|ios::trunc);
     for (int i = 0; i < NodeCount; i++)
     {
         fs<<N[i].idx<<" "<<N[i].value<<endl;
     }
     fs.close();
+    */
     for (int i=0;i<NodeCount;i++)
     {
         for (int j=i+1;j<NodeCount;j++)
@@ -211,10 +222,10 @@ void SortAndPrint()
             }
         }
     }
-    ofstream f100("Top100.txt", ios::out|ios::trunc);
+    ofstream f100("./Results/Top100.txt", ios::out|ios::trunc);
     for (int i = 0; i < 100; i++)
     {
-        f100<<N[i].idx<<" "<<N[i].value<<endl;
+        f100<<N[i].idx<<"\t"<<N[i].value<<endl;
     }
     f100.close();
 }
@@ -224,14 +235,16 @@ void SortAndPrint()
 int main(int argc, char* argv[])
 {
     Beta=argc>2?atof(argv[2]):0.85;
-    cout<<"DataSet path:"<<argv[1]<<endl;
+    const char* path = argc>1?argv[1]:"./Data/WikiData.txt";
+    system("mkdir Results");
+    cout<<"DataSet path:"<<path<<endl;
     cout<<"Beta value:"<<Beta<<endl;
     cout<<"==========Initializing========\n";
     int from, to;
     int pre=-1;
     int i=-1;
     cout<<"Opening Dataset.txt...";
-    ifstream fin(argv[1]);
+    ifstream fin(path);
     cout<<(fin?"Success":"Cannot open file!")<<endl;
     while (!fin.eof())
     {
@@ -263,7 +276,7 @@ int main(int argc, char* argv[])
     //fo.close();
     fclose(fo);
 #endif
-    Prepare(argv[1]);
+    Prepare(path);
 
     //exit(-22);
 
@@ -278,7 +291,15 @@ int main(int argc, char* argv[])
     }
     cout<<"Success\n";
     cout<<"Checking R[i]="<<R[30]<<endl;
+    ofstream fo1("R00.dat", ios::out|ios::binary|ios::trunc);
+    for (int i=0; i < MAXNODE; i++)
+    {
+        //cout<<"i"<<i<<" Rt[i]"<<R[i]<<endl;
+        fo1.write((char*)&R[i], sizeof(R[i]));
+    }
+    fo1.close();
     UpdateR();
+
     cout << "Checking...\n";
     double S=0.0;
     for (int i=0; i < MAXNODE; i++)
@@ -293,14 +314,19 @@ int main(int argc, char* argv[])
 
 }
 
-void Prepare(char* dataFile)
+void Prepare(const char* dataFile)
 {
     cout<<"====Block-Stripe PageRank Algorithm====\n";
     cout<<"Preparing...\n";
     cout<<"Dataset: "<<dataFile<<endl;
     cout<<"Opening Dataset...";
     ifstream fin(dataFile);
-    cout<<(fin?"Success":"Fail")<<endl;
+    if(!fin)
+    {
+        cout<<"Fail, Dataset path is not correct!"<<endl;
+        exit(-1);
+    }
+    cout<<"Success"<<endl;
     groupCount=MAXNODE/BLOCKSIZE + 1;
     cout<<"MAXNODE="<<MAXNODE<<endl;
     cout<<"BLOCKSIZE="<<BLOCKSIZE<<endl;
@@ -316,8 +342,18 @@ void Prepare(char* dataFile)
     {
         sprintf(buff, "./BlockFiles/Block%s%d.txt", i<10?"0":"", i);
         fo[i].open(buff, ios::out|ios::trunc|ios::in);
+        if(!fo[i])
+        {
+            cout<<"Open Block file %d fail."<<i<<endl;
+            exit(-1);
+        }
         sprintf(buff, "./BlockFiles/Matrix%s%d.txt", i<10?"0":"", i);
         fi[i].open(buff, ios::out|ios::trunc|ios::in);
+        if(!fi[i])
+        {
+            cout<<"Open Matrix file %d fail."<<i<<endl;
+            exit(-1);
+        }
     }
     cout<<"Success"<<endl;
     

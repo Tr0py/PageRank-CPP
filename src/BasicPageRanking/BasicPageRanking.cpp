@@ -31,7 +31,7 @@ static inline double CalcDev()
         //cout<<"abs:"<<(double)(R[i]-Rt[i])<<endl;
         dev+=(double)fabs(R[i]-Rt[i]);
     }
-    cout<<"DDDeeevvv in func: "<<dev<<endl;
+    //cout<<"DDDeeevvv in func: "<<dev<<endl;
     return dev;
 }
 
@@ -51,7 +51,7 @@ int UpdateR()
         if (hash[i]==0) continue;
         rj_sum+=Rt[i];
     }
-    printf("Now S=%lf\n", rj_sum);
+    //printf("Now S=%lf\n", rj_sum);
 
     //Check end
     for (int i = 0; i < MAXNODE; i++)
@@ -94,21 +94,21 @@ int UpdateR()
     }
     printf("Now S=%lf\n", rj_sum);
     double Dev = CalcDev();
-    printf("Dev: %f\n", Dev); 
-    cout<<"R and Rt: ";
-    for (int i=0; i < 5; i++)
-    {
-        cout<<R[i]<<"->";
-        cout<<Rt[i]<<" ";
+    cout<<"Deviation: "<<Dev;
+    //cout<<"R and Rt: ";
+    //for (int i=0; i < 5; i++)
+    //{
+    //    cout<<R[i]<<"->";
+    //    cout<<Rt[i]<<" ";
 
-    }
-    printf("4037 R=%lf\n", R[4037]);
-    cout<<endl;
+    //}
+    //printf("4037 R=%lf\n", R[4037]);
     if (Dev<STOPLOSS)
     {
         cout<<"Power Iteration Complete!\n";
         return 0;
     }
+    cout<<" < Expected Deviation("<<STOPLOSS<<"), continue..."<<endl;
     memcpy(R, Rt, sizeof(double)*MAXNODE);
     //exit(-1);
     UpdateR();
@@ -143,19 +143,13 @@ void SortAndPrint()
         it++;
         //printf("Get %dth Node %d, value %lf\n", it, i, R[i]);
     }
-    ofstream fo("FullResult.txt", ios::out|ios::trunc);
+    ofstream fo("./Results/FullResult.txt", ios::out|ios::trunc);
     for (int i = 0; i < NodeCount; i++)
     {
         if (hash[i]==0) continue;
-        fo<<"index:"<<i<<"\t"<<N[i].idx<<" "<<N[i].value<<endl;
+        fo<<N[i].idx<<"\t"<<N[i].value<<endl;
     }
     fo.close();
-    ofstream fs("SortList.txt", ios::out|ios::trunc);
-    for (int i = 0; i < NodeCount; i++)
-    {
-        fs<<N[i].idx<<" "<<N[i].value<<endl;
-    }
-    fs.close();
     for (int i=0;i<NodeCount;i++)
     {
         for (int j=i+1;j<NodeCount;j++)
@@ -166,10 +160,10 @@ void SortAndPrint()
             }
         }
     }
-    ofstream f100("Top100.txt", ios::out|ios::trunc);
+    ofstream f100("./Results/Top100.txt", ios::out|ios::trunc);
     for (int i = 0; i < 100; i++)
     {
-        f100<<N[i].idx<<" "<<N[i].value<<endl;
+        f100<<N[i].idx<<"\t"<<N[i].value<<endl;
     }
     f100.close();
 }
@@ -178,14 +172,17 @@ void SortAndPrint()
 int main(int argc, char* argv[])
 {
     //TODO check argc
-    Beta=atof(argv[2]);
-    cout<<"DataSet path:"<<argv[1]<<endl;
+    Beta=argc>2?atof(argv[2]):0.85;
+    const char* defaultPath=argc>1?argv[1]:"./Data/WikiData.txt";
+    system("mkdir Results");
+    
+    cout<<"DataSet path:"<<defaultPath<<endl;
     cout<<"Beta value:"<<Beta<<endl;
     int from, to;
     int pre=-1;
     cout<<"==========Initializing========\n";
     cout<<"Opening Dataset.txt...";
-    ifstream fin(argv[1]);
+    ifstream fin(defaultPath);
     cout<<(fin?"Success":"Cannot open file!")<<endl;
     int i=-1;
     while (!fin.eof())
@@ -230,7 +227,7 @@ int main(int argc, char* argv[])
             R[i]=1.0/NodeCount;
         else
             R[i]=0;
-        cout<<"I:"<<i<<" "<<R[i]<<endl;
+        //cout<<"I:"<<i<<" "<<R[i]<<endl;
     }
     cout<<"Success\n";
     cout<<"Checking R[i]="<<R[0]<<endl;
